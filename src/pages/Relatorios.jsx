@@ -1,17 +1,27 @@
+
 import React from 'react';
     import { useNavigate } from 'react-router-dom';
     import { Helmet } from 'react-helmet';
     import { motion } from 'framer-motion';
-    import { BarChart3, PieChart, TrendingUp, ArrowLeft } from 'lucide-react';
+    import { BarChart3, PieChart, TrendingUp, ArrowLeft, FileClock } from 'lucide-react';
     
     import { Button } from '@/components/ui/button';
     import { Card, CardContent } from '@/components/ui/card';
+    import { useToast } from '@/components/ui/use-toast';
     
     const Relatorios = () => {
         const navigate = useNavigate();
+        const { toast } = useToast();
     
-        const handleNavigation = (path) => {
-            navigate(path);
+        const handleNavigation = (path, implemented = true) => {
+            if (implemented) {
+                navigate(path);
+            } else {
+                toast({
+                    title: "Em breve!",
+                    description: "🚧 Este recurso ainda não foi implementado, mas estará disponível em breve! 🚀",
+                });
+            }
         };
     
         const reportOptions = [
@@ -20,18 +30,28 @@ import React from 'react';
                 icon: BarChart3,
                 description: "Análise detalhada de entradas e saídas por período.",
                 action: () => handleNavigation('/relatorios/fluxo-caixa-detalhado'),
+                implemented: true,
             },
             {
                 title: "DRE Gerencial",
                 icon: PieChart,
                 description: "Demonstrativo de Resultado do Exercício para visão de lucro.",
                 action: () => handleNavigation('/relatorios/dre-gerencial'),
+                implemented: true,
             },
             {
                 title: "Contas a Pagar/Receber",
                 icon: TrendingUp,
                 description: "Relatório completo de contas em aberto, pagas e vencidas.",
                 action: () => handleNavigation('/relatorios/contas'),
+                implemented: true,
+            },
+            {
+                title: "Acompanhamento de Fechamento",
+                icon: FileClock,
+                description: "Acompanhe o status do fechamento mensal.",
+                action: () => handleNavigation('#', false),
+                implemented: false,
             }
         ];
     
@@ -56,7 +76,7 @@ import React from 'react';
                     </div>
                 </div>
     
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     {reportOptions.map((option, index) => {
                         const Icon = option.icon;
                         return (
@@ -72,13 +92,15 @@ import React from 'react';
                                 >
                                     <CardContent className="p-6 flex flex-col items-center text-center">
                                         <div className="p-4 bg-blue-500/10 rounded-full mb-4">
-                                            <Icon className="w-12 h-12 text-blue-400" />
+                                            <Icon className={`w-12 h-12 ${option.implemented ? 'text-blue-400' : 'text-gray-500'}`} />
                                         </div>
-                                        <h2 className="text-xl font-semibold text-white mb-2">{option.title}</h2>
+                                        <h2 className={`text-xl font-semibold mb-2 ${option.implemented ? 'text-white' : 'text-gray-400'}`}>{option.title}</h2>
                                         <p className="text-gray-400 text-sm flex-grow">{option.description}</p>
                                     </CardContent>
                                     <div className="p-4 pt-0">
-                                         <Button className="w-full bg-blue-600 hover:bg-blue-700">Gerar Relatório</Button>
+                                         <Button className="w-full bg-blue-600 hover:bg-blue-700" disabled={!option.implemented}>
+                                            {option.implemented ? 'Gerar Relatório' : 'Em Breve'}
+                                         </Button>
                                     </div>
                                 </Card>
                             </motion.div>

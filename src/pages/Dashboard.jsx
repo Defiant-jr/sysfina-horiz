@@ -76,7 +76,9 @@ import React, { useState, useEffect } from 'react';
         try {
           toast({ title: "Iniciando importação...", description: "Buscando dados das planilhas.", variant: "default" });
           
-          const { data: functionData, error: functionError } = await supabase.functions.invoke('import-google-sheets');
+          const { data: functionData, error: functionError } = await supabase.functions.invoke('import-google-sheets', {
+            body: {},
+          });
 
           if (functionError) throw functionError;
     
