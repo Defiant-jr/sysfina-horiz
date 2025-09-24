@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
     import { motion, AnimatePresence } from 'framer-motion';
     import { useNavigate } from 'react-router-dom';
     import { Button } from '@/components/ui/button';
-    import { ChevronLeft, ChevronRight, ArrowLeft, Filter } from 'lucide-react';
+    import { ChevronLeft, ChevronRight, ArrowLeft, Filter, PlusSquare, MinusSquare } from 'lucide-react';
     import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
     import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
     import {
@@ -18,7 +18,8 @@ import React, { useState, useEffect, useMemo } from 'react';
     } from 'recharts';
     import { supabase } from '@/lib/customSupabaseClient';
     import { useToast } from '@/components/ui/use-toast';
-    import { startOfMonth, endOfMonth, format, eachDayOfInterval, subDays } from 'date-fns';
+    import { startOfMonth, endOfMonth, format, eachDayOfInterval } from 'date-fns';
+    import { cn } from '@/lib/utils';
 
     const FluxoCaixa = () => {
       const navigate = useNavigate();
@@ -27,6 +28,8 @@ import React, { useState, useEffect, useMemo } from 'react';
       const [currentDate, setCurrentDate] = useState(new Date());
       const [loading, setLoading] = useState(false);
       const [unidadeFiltro, setUnidadeFiltro] = useState('todas');
+      const [viewType, setViewType] = useState('sintetico');
+      const [expandedRows, setExpandedRows] = useState({});
 
       useEffect(() => {
         loadData();
@@ -45,10 +48,16 @@ import React, { useState, useEffect, useMemo } from 'react';
 
       const handlePrevMonth = () => {
         setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+        setExpandedRows({});
       };
 
       const handleNextMonth = () => {
         setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+        setExpandedRows({});
+      };
+
+      const toggleRow = (dia) => {
+        setExpandedRows(prev => ({ ...prev, [dia]: !prev[dia] }));
       };
 
       const formatCurrency = (value) => {
@@ -66,13 +75,14 @@ import React, { useState, useEffect, useMemo } from 'react';
           dia: format(day, 'dd'),
           receber: 0,
           pagar: 0,
+          details: { receber: [], pagar: [] }
         }));
 
         const filteredByUnit = unidadeFiltro === 'todas' 
           ? allData 
           : allData.filter(item => item.unidade === unidadeFiltro);
 
-        const atrasados = filteredByUnit.filter(item => {
+        const atrasadosLancamentos = filteredByUnit.filter(item => {
           if (item.status === 'Pago') return false;
           const vencimento = new Date(item.data + 'T00:00:00');
           return vencimento < firstDayOfMonth;
@@ -80,8 +90,12 @@ import React, { useState, useEffect, useMemo } from 'react';
 
         const dia00 = {
           dia: '00',
-          receber: atrasados.filter(i => i.tipo === 'Entrada').reduce((acc, i) => acc + i.valor, 0),
-          pagar: atrasados.filter(i => i.tipo === 'Saida').reduce((acc, i) => acc + i.valor, 0),
+          receber: atrasadosLancamentos.filter(i => i.tipo === 'Entrada').reduce((acc, i) => acc + i.valor, 0),
+          pagar: atrasadosLancamentos.filter(i => i.tipo === 'Saida').reduce((acc, i) => acc + i.valor, 0),
+          details: {
+            receber: atrasadosLancamentos.filter(i => i.tipo === 'Entrada'),
+            pagar: atrasadosLancamentos.filter(i => i.tipo === 'Saida')
+          }
         };
 
         const monthDataFiltered = filteredByUnit.filter(item => {
@@ -94,8 +108,13 @@ import React, { useState, useEffect, useMemo } from 'react';
           const vencimento = new Date(item.data + 'T00:00:00');
           const dayIndex = vencimento.getUTCDate() - 1;
           if (fluxo[dayIndex]) {
-            const type = item.tipo === 'Entrada' ? 'receber' : 'pagar';
-            fluxo[dayIndex][type] += item.valor;
+            if (item.tipo === 'Entrada') {
+              fluxo[dayIndex].receber += item.valor;
+              fluxo[dayIndex].details.receber.push(item);
+            } else {
+              fluxo[dayIndex].pagar += item.valor;
+              fluxo[dayIndex].details.pagar.push(item);
+            }
           }
         });
 
@@ -151,18 +170,27 @@ import React, { useState, useEffect, useMemo } from 'react';
 
             <Card className="glass-card">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-white"><Filter className="w-5 h-5" />Filtro por Unidade</CardTitle>
+                <CardTitle className="flex items-center gap-2 text-white"><Filter className="w-5 h-5" />Filtros</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="flex flex-col md:flex-row gap-4">
                 <Select value={unidadeFiltro} onValueChange={setUnidadeFiltro}>
                   <SelectTrigger className="w-full md:w-72 bg-white/10 border-white/20 text-white">
-                    <SelectValue />
+                    <SelectValue placeholder="Filtrar por Unidade" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="todas">Todas as Unidades</SelectItem>
                     <SelectItem value="CNA Angra dos Reis">CNA Angra dos Reis</SelectItem>
                     <SelectItem value="CNA Mangaratiba">CNA Mangaratiba</SelectItem>
                     <SelectItem value="Casa">Casa</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={viewType} onValueChange={setViewType}>
+                  <SelectTrigger className="w-full md:w-72 bg-white/10 border-white/20 text-white">
+                    <SelectValue placeholder="Tipo de Visualização" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sintetico">Sintético</SelectItem>
+                    <SelectItem value="analitico">Analítico</SelectItem>
                   </SelectContent>
                 </Select>
               </CardContent>
@@ -177,6 +205,7 @@ import React, { useState, useEffect, useMemo } from 'react';
                   <table className="w-full text-left">
                     <thead>
                       <tr className="border-b border-slate-700">
+                        <th className="p-3 w-12"></th>
                         <th className="p-3">Dia</th>
                         <th className="p-3 text-right text-green-400">A Receber</th>
                         <th className="p-3 text-right text-red-400">A Pagar</th>
@@ -184,35 +213,75 @@ import React, { useState, useEffect, useMemo } from 'react';
                         <th className="p-3 text-right">Saldo Acumulado</th>
                       </tr>
                     </thead>
-                    <AnimatePresence>
+                    
                       <tbody>
                         {loading ? (
-                          <tr><td colSpan="5" className="text-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mx-auto"></div></td></tr>
-                        ) : monthData.length > 0 ? monthData.map((dia, index) => (
-                          <motion.tr 
-                            key={dia.dia}
-                            layout
-                            initial={{ opacity: 0, y: -10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0 }}
-                            transition={{ duration: 0.3, delay: index * 0.05 }}
-                            className={`border-b border-slate-800 hover:bg-slate-700/50 ${dia.dia === '00' ? 'bg-yellow-500/10' : ''}`}
-                          >
-                            <td className={`p-3 font-medium ${dia.dia === '00' ? 'text-yellow-400' : ''}`}>{dia.dia === '00' ? 'Atrasados' : dia.dia}</td>
-                            <td className="p-3 text-right font-mono text-green-400">{formatCurrency(dia.receber)}</td>
-                            <td className="p-3 text-right font-mono text-red-400">{formatCurrency(dia.pagar)}</td>
-                            <td className={`p-3 text-right font-mono ${dia.saldoDia >= 0 ? 'text-blue-300' : 'text-orange-400'}`}>{formatCurrency(dia.saldoDia)}</td>
-                            <td className={`p-3 text-right font-mono ${dia.saldoAcumulado >= 0 ? 'text-white' : 'text-red-500'}`}>{formatCurrency(dia.saldoAcumulado)}</td>
-                          </motion.tr>
+                          <tr><td colSpan="6" className="text-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mx-auto"></div></td></tr>
+                        ) : monthData.length > 0 ? monthData.map((dia) => (
+                          <React.Fragment key={dia.dia}>
+                            <motion.tr
+                              layout
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              exit={{ opacity: 0 }}
+                              className={cn('border-b border-slate-800 hover:bg-slate-700/50', dia.dia === '00' && 'bg-yellow-500/10')}
+                            >
+                              <td className="p-3">
+                                {viewType === 'analitico' && (dia.details.receber.length > 0 || dia.details.pagar.length > 0) && (
+                                  <Button variant="ghost" size="icon" onClick={() => toggleRow(dia.dia)} className="h-8 w-8">
+                                    {expandedRows[dia.dia] ? <MinusSquare className="h-4 w-4" /> : <PlusSquare className="h-4 w-4" />}
+                                  </Button>
+                                )}
+                              </td>
+                              <td className={cn('p-3 font-medium', dia.dia === '00' && 'text-yellow-400')}>{dia.dia === '00' ? 'Atrasados' : dia.dia}</td>
+                              <td className="p-3 text-right font-mono text-green-400">{formatCurrency(dia.receber)}</td>
+                              <td className="p-3 text-right font-mono text-red-400">{formatCurrency(dia.pagar)}</td>
+                              <td className={cn('p-3 text-right font-mono', dia.saldoDia >= 0 ? 'text-blue-300' : 'text-orange-400')}>{formatCurrency(dia.saldoDia)}</td>
+                              <td className={cn('p-3 text-right font-mono', dia.saldoAcumulado >= 0 ? 'text-white' : 'text-red-500')}>{formatCurrency(dia.saldoAcumulado)}</td>
+                            </motion.tr>
+                            <AnimatePresence>
+                            {viewType === 'analitico' && expandedRows[dia.dia] && (
+                              <motion.tr
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="bg-slate-900/50"
+                              >
+                                <td colSpan="6" className="p-0">
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 p-4">
+                                    <div>
+                                      <h4 className="font-semibold text-green-400 mb-2 border-b border-slate-700 pb-1">Entradas</h4>
+                                      {dia.details.receber.length > 0 ? dia.details.receber.map(item => (
+                                        <div key={item.id} className="flex justify-between text-sm py-1">
+                                          <span>{item.cliente_fornecedor}</span>
+                                          <span className="font-mono">{formatCurrency(item.valor)}</span>
+                                        </div>
+                                      )) : <p className="text-xs text-slate-400">Nenhuma entrada.</p>}
+                                    </div>
+                                    <div>
+                                      <h4 className="font-semibold text-red-400 mb-2 border-b border-slate-700 pb-1">Saídas</h4>
+                                      {dia.details.pagar.length > 0 ? dia.details.pagar.map(item => (
+                                        <div key={item.id} className="flex justify-between text-sm py-1">
+                                          <span>{item.cliente_fornecedor}</span>
+                                          <span className="font-mono">{formatCurrency(item.valor)}</span>
+                                        </div>
+                                      )) : <p className="text-xs text-slate-400">Nenhuma saída.</p>}
+                                    </div>
+                                  </div>
+                                </td>
+                              </motion.tr>
+                            )}
+                            </AnimatePresence>
+                          </React.Fragment>
                         )) : (
                           <tr>
-                            <td colSpan="5" className="text-center p-8 text-slate-400">
+                            <td colSpan="6" className="text-center p-8 text-slate-400">
                               Nenhum dado para exibir neste mês.
                             </td>
                           </tr>
                         )}
                       </tbody>
-                    </AnimatePresence>
+                    
                   </table>
                 </div>
               </CardContent>
